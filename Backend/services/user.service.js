@@ -17,7 +17,6 @@ export const createUser = async ({
     });
 
     return user;
-
 }
 
 export const getAllUsers = async ({ userId }) => {
