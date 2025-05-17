@@ -27,8 +27,6 @@ export const createProject = async (req, res) => {
         res.status(400).send(err.message);
     }
 
-
-
 }
 
 export const getAllProject = async (req, res) => {
