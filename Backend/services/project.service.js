@@ -25,7 +25,6 @@ export const createProject = async ({
     }
 
     return project;
-
 }
 
 
