@@ -18,7 +18,6 @@ Fluxy is an AI-powered platform designed to enhance real-time collaboration and 
 	•	Real-time collaborative coding
 	•	AI-assisted learning and debugging
 	•	Lightweight backend testing environment
-
 ⸻
 
 🛠️ Tech Stack
