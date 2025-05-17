@@ -14,14 +14,7 @@ const Login = () => {
         if (user) {
             navigate('/')
         }
-    }, [user, navigate])
-    // useEffect(() => {
-    //     if (user) {
-    //         navigate('/');
-    //     } else {
-    //         navigate('/login');
-    //     }
-    // }, [user, navigate]);
+    }, [user, navigate]);
 
     function submitHandler(e) {
         e.preventDefault()
