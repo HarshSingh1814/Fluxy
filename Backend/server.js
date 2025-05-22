@@ -77,23 +77,24 @@ io.on('connection', socket => {
 
             const prompt = message.replace('fluxy', '');
 
-            const result = await generateResult(prompt);
+            try {
+                const result = await generateResult(prompt);
+                io.to(socket.roomId).emit('project-message', {
+                    message: result,
+                    sender: {
+                        _id: 'ai',
+                        email: 'AI'
+                    }
+                });
+            } catch (error) {
+                console.error('Error generating AI response or emitting message:', error);
+                // Optionally, inform the client about the AI error
+                socket.emit('ai-error', { message: 'There was an error processing your request with the AI.' });
+            }
 
-
-            io.to(socket.roomId).emit('project-message', {
-                message: result,
-                sender: {
-                    _id: 'ai',
-                    email: 'AI'
-                }
-            })
-
-
-            return
+            return; // Ensure this return is placed correctly if it's meant to exit after AI processing
         }
-
-
-    })
+    });
 
     socket.on('disconnect', () => {
         console.log('user disconnected');

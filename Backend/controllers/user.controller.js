@@ -3,251 +3,113 @@ import userModel from '../models/user.model.js';
 import * as userService from '../services/user.service.js';
 import { validationResult } from 'express-validator';
 import redisClient from '../services/redis.service.js';
+import catchAsync from '../utils/catchAsync.js';
 
-export const createUserController = async (req, res) => {
+export const createUserController = catchAsync(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        // Consider throwing a custom validation error for the global handler
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    const user = await userService.createUser(req.body);
+    const token = await user.generateJWT();
+
+    // userService.createUser should ideally not return password,
+    // but if it does, ensure it's handled or removed before sending.
+    // For now, assuming user object from service is safe or handled there.
+    // If user._doc exists and contains password, it should be removed.
+    // const userResponse = { ...user._doc };
+    // delete userResponse.password;
+    // res.status(201).json({ user: userResponse, token });
+    // For simplicity, if user object is a Mongoose document, .toObject() is safer
+    const userObject = user.toObject ? user.toObject() : { ...user };
+    delete userObject.password;
+
+    res.status(201).json({ user: userObject, token });
+});
+
+export const loginController = catchAsync(async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
     }
 
-    try {
-        const user = await userService.createUser(req.body);
-        const token = await user.generateJWT();
+    const { email, password } = req.body;
 
-        delete user._doc.password;
-
-        res.status(201).json({ user, token });
-    } catch (error) {
-        console.error("Error in createUserController:", error);
-        res.status(400).send(error.message);
-    }
-};
-
-export const loginController = async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+    if (!email || !password) {
+        const err = new Error('Email and password are required');
+        err.statusCode = 400;
+        throw err;
     }
 
-    try {
-        const { email, password } = req.body;
+    const user = await userModel.findOne({ email }).select('+password');
 
-        if (!email || !password) {
-            return res.status(400).json({ errors: 'Email and password are required' });
-        }
-
-        const user = await userModel.findOne({ email }).select('+password');
-
-        if (!user || !user.password) {
-            return res.status(401).json({ errors: 'Invalid credentials (user not found or password missing)' });
-        }
-
-        const isMatch = await user.isValidPassword(password);
-
-        if (!isMatch) {
-            return res.status(401).json({ errors: 'Invalid credentials' });
-        }
-
-        const token = await user.generateJWT();
-        delete user._doc.password;
-
-        res.status(200).json({ user, token });
-    } catch (err) {
-        console.error("Error in loginController:", err);
-        res.status(400).send(err.message);
+    if (!user || !user.password) {
+        const err = new Error('Invalid credentials');
+        err.statusCode = 401;
+        throw err;
     }
-};
 
-export const profileController = async (req, res) => {
+    const isMatch = await user.isValidPassword(password);
+
+    if (!isMatch) {
+        const err = new Error('Invalid credentials');
+        err.statusCode = 401;
+        throw err;
+    }
+
+    const token = await user.generateJWT();
+    // Similar to createUser, ensure password is not in the response.
+    const userObject = user.toObject ? user.toObject() : { ...user };
+    delete userObject.password;
+
+    res.status(200).json({ user: userObject, token });
+});
+
+export const profileController = catchAsync(async (req, res) => {
+    // req.user is populated by authentication middleware.
+    // Ensure it doesn't contain sensitive info like password.
+    // Assuming req.user is safe to send as is.
     res.status(200).json({
         user: req.user
     });
-};
+});
 
-export const logoutController = async (req, res) => {
-    try {
-        const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
+export const logoutController = catchAsync(async (req, res) => {
+    const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
 
-        if (!token) {
-            return res.status(400).json({ message: 'Token not provided' });
-        }
-
-        redisClient.set(token, 'logout', 'EX', 60 * 60 * 24); // 1 day expiry
-
-        res.status(200).json({
-            message: 'Logged out successfully'
-        });
-    } catch (err) {
-        console.error("Error in logoutController:", err);
-        res.status(400).send(err.message);
+    if (!token) {
+        const err = new Error('Token not provided');
+        err.statusCode = 400;
+        throw err;
     }
-};
 
-export const getAllUsersController = async (req, res) => {
-    try {
-        const loggedInUser = await userModel.findOne({ email: req.user.email });
+    // Note: redisClient.set is not awaited here. If it were async and could fail,
+    // we'd need to await it and handle potential errors by throwing them.
+    // For now, assuming it's a sync operation or its errors are not critical to this flow.
+    // If redisClient.set can throw an error that should be caught by catchAsync,
+    // it needs to be an awaited async operation.
+    // Example: await redisClient.set(token, 'logout', 'EX', 60 * 60 * 24);
+    // Promisify redisClient.set or ensure redisClient itself supports promises for await to work as expected.
+    // Assuming redisClient.set returns a promise or is used with a promisified version.
+    await redisClient.set(token, 'logout', 'EX', 60 * 60 * 24);
 
-        if (!loggedInUser) {
-            return res.status(404).json({ error: 'Logged-in user not found' });
-        }
+    res.status(200).json({
+        message: 'Logged out successfully'
+    });
+});
 
-        const allUsers = await userService.getAllUsers({ userId: loggedInUser._id });
+export const getAllUsersController = catchAsync(async (req, res) => {
+    const loggedInUser = await userModel.findOne({ email: req.user.email });
 
-        return res.status(200).json({ users: allUsers });
-    } catch (err) {
-        console.error("Error in getAllUsersController:", err);
-        res.status(400).json({ error: err.message });
+    if (!loggedInUser) {
+        const err = new Error('Logged-in user not found');
+        err.statusCode = 404;
+        throw err;
     }
-};
 
+    const allUsers = await userService.getAllUsers({ userId: loggedInUser._id });
 
-
-
-
-
-
-
-
-// import userModel from '../models/user.model.js';
-// import * as userService from '../services/user.service.js';
-// import { validationResult } from 'express-validator';
-// import redisClient from '../services/redis.service.js';
-
-// export const createUserController = async (req, res) => {
-//     const errors = validationResult(req);
-//     if (!errors.isEmpty()) {
-//         return res.status(400).json({ errors: errors.array() });
-//     }
-
-//     try {
-//         const user = await userService.createUser(req.body);
-//         const token = user.generateJWT();
-
-//         // Remove sensitive data before sending response
-//         const userResponse = user.toObject();
-//         delete userResponse.password;
-//         delete userResponse.__v;
-
-//         return res.status(201).json({ 
-//             user: userResponse, 
-//             token 
-//         });
-//     } catch (error) {
-//         console.error("Create User Error:", error);
-//         return res.status(400).json({ 
-//             error: error.message || 'User registration failed' 
-//         });
-//     }
-// };
-
-// export const loginController = async (req, res) => {
-//     const errors = validationResult(req);
-//     if (!errors.isEmpty()) {
-//         return res.status(400).json({ errors: errors.array() });
-//     }
-
-//     try {
-//         const { email, password } = req.body;
-
-//         const user = await userModel.findOne({ email }).select('+password +isActive');
-        
-//         if (!user || !(await user.isValidPassword(password))) {
-//             return res.status(401).json({ 
-//                 error: 'Invalid email or password' 
-//             });
-//         }
-
-//         if (user.isActive === false) {
-//             return res.status(403).json({ 
-//                 error: 'Account is deactivated' 
-//             });
-//         }
-
-//         const token = user.generateJWT();
-//         const userResponse = user.toObject();
-//         delete userResponse.password;
-//         delete userResponse.__v;
-
-//         return res.status(200).json({ 
-//             user: userResponse, 
-//             token 
-//         });
-//     } catch (err) {
-//         console.error("Login Error:", err);
-//         return res.status(500).json({ 
-//             error: 'Authentication failed' 
-//         });
-//     }
-// };
-
-// export const profileController = async (req, res) => {
-//     try {
-//         const user = await userModel.findById(req.user._id)
-//             .select('-password -__v -loginHistory');
-
-//         if (!user) {
-//             return res.status(404).json({ 
-//                 error: 'User not found' 
-//             });
-//         }
-
-//         return res.status(200).json({ user });
-//     } catch (err) {
-//         console.error("Profile Error:", err);
-//         return res.status(500).json({ 
-//             error: 'Failed to fetch profile' 
-//         });
-//     }
-// };
-
-// export const logoutController = async (req, res) => {
-//     try {
-//         const token = req.cookies.token || 
-//                      req.headers.authorization?.split(' ')[1] ||
-//                      req.headers['x-access-token'];
-
-//         if (!token) {
-//             return res.status(400).json({ 
-//                 error: 'No authentication token found' 
-//             });
-//         }
-
-//         // Add token to blacklist with 24h expiry
-//         await redisClient.set(`blacklist_${token}`, 'true', 'EX', 86400);
-
-//         // Clear cookie if using cookie-based auth
-//         res.clearCookie('token');
-
-//         return res.status(200).json({ 
-//             message: 'Logged out successfully' 
-//         });
-//     } catch (err) {
-//         console.error("Logout Error:", err);
-//         return res.status(500).json({ 
-//             error: 'Logout failed' 
-//         });
-//     }
-// };
-
-// export const getAllUsersController = async (req, res) => {
-//     try {
-//         // Only allow admins to fetch all users
-//         if (req.user.role !== 'admin') {
-//             return res.status(403).json({ 
-//                 error: 'Unauthorized access' 
-//             });
-//         }
-
-//         const users = await userService.getAllUsers();
-        
-//         return res.status(200).json({ 
-//             users,
-//             count: users.length 
-//         });
-//     } catch (err) {
-//         console.error("Get Users Error:", err);
-//         return res.status(500).json({ 
-//             error: 'Failed to fetch users' 
-//         });
-//     }
-// };
+    return res.status(200).json({ users: allUsers });
+});

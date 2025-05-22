@@ -25,4 +25,23 @@ app.get('/', (req, res) => {
     res.send('Hello World!');
 });
 
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Something went wrong!';
+
+  const response = {
+    status: 'error',
+    message,
+  };
+
+  if (process.env.NODE_ENV === 'development') {
+    response.stack = err.stack;
+  }
+
+  res.status(statusCode).json(response);
+});
+
 export default app;  
