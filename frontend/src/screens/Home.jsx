@@ -59,21 +59,21 @@ const Home = () => {
     }, [])
 
     return (
-        <main className="min-h-screen p-6 bg-gray-900 text-gray-100">
+        <main className="min-h-screen p-6 bg-background text-foreground">
             {/* Header */}
-            <div className="flex justify-between items-center mb-8 pb-6 border-b border-gray-800">
+            <div className="flex justify-between items-center mb-8 pb-6 border-b border-border">
                 <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                         Fluxy
                     </h1>
-                    <p className="text-gray-400 mt-1 flex items-center">
-                        <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
-                        Welcome , <span className="font-medium text-blue-300 ml-1">{user?.email || 'User'}</span>
+                    <p className="text-muted-foreground mt-1 flex items-center">
+                        <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span> {/* Kept green for status */}
+                        Welcome , <span className="font-medium text-primary ml-1">{user?.email || 'User'}</span>
                     </p>
                 </div>
                 <button
                     onClick={logout}
-                    className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white px-4 py-2 rounded-lg transition-all border border-gray-700 hover:border-gray-600"
+                    className="flex items-center gap-2 bg-secondary hover:bg-muted text-muted-foreground hover:text-foreground px-4 py-2 rounded-lg transition-all border border-border hover:border-border/80"
                 >
                     <i className="ri-logout-box-r-line"></i>
                     Sign Out
@@ -83,13 +83,13 @@ const Home = () => {
             {/* Project List */}
             <div className="mb-8">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-semibold text-gray-300 flex items-center">
-                        <i className="ri-folder-2-line mr-3 text-blue-400"></i>
+                    <h2 className="text-xl font-semibold text-foreground flex items-center">
+                        <i className="ri-folder-2-line mr-3 text-primary"></i>
                         My Projects
                     </h2>
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg transition-all hover:shadow-lg hover:shadow-blue-500/20"
+                        className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2.5 rounded-lg transition-all hover:shadow-lg hover:shadow-primary/20"
                     >
                         <i className="ri-add-line"></i>
                         New Project
@@ -98,35 +98,35 @@ const Home = () => {
 
                 {isLoading ? (
                     <div className="flex justify-center items-center h-64">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
                     </div>
                 ) : (
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                         {project.map((project) => (
                             <div
                                 key={project._id}
-                                className="bg-gray-800 p-5 rounded-xl shadow-lg hover:shadow-xl transition-all border border-gray-700 hover:border-blue-500/30 hover:translate-y-[-2px] group"
+                                className="bg-card p-5 rounded-xl shadow-lg hover:shadow-xl transition-all border border-border hover:border-primary/30 hover:translate-y-[-2px] group"
                             >
                                 <div className="h-full flex flex-col">
                                     <div className="flex-grow">
                                         <div className="flex justify-between items-start mb-3">
                                             <h3
                                                 onClick={() => navigate(`/project`, { state: { project } })}
-                                                className="text-lg font-medium text-gray-100 hover:text-blue-400 cursor-pointer line-clamp-2 group-hover:text-blue-400 transition-colors"
+                                                className="text-lg font-medium text-foreground hover:text-primary cursor-pointer line-clamp-2 group-hover:text-primary transition-colors"
                                             >
                                                 {project.name}
                                             </h3>
-                                            <span className="bg-blue-900/50 text-blue-300 text-xs px-2.5 py-1 rounded-full border border-blue-800/50">
+                                            <span className="bg-primary/20 text-primary text-xs px-2.5 py-1 rounded-full border border-primary/30">
                                                 {project.status || 'Active'}
                                             </span>
                                         </div>
-                                        <div className="flex items-center text-gray-400 text-sm mb-4">
-                                            <i className="ri-team-line mr-2 text-blue-400"></i>
+                                        <div className="flex items-center text-muted-foreground text-sm mb-4">
+                                            <i className="ri-team-line mr-2 text-primary"></i>
                                             <span>{project.users.length} {project.users.length === 1 ? 'Member' : 'Members'}</span>
                                         </div>
                                     </div>
-                                    <div className="flex justify-between items-center pt-4 border-t border-gray-700">
-                                        <span className="text-xs text-gray-500">
+                                    <div className="flex justify-between items-center pt-4 border-t border-border">
+                                        <span className="text-xs text-muted-foreground/70">
                                             {new Date(project.createdAt).toLocaleDateString('en-US', {
                                                 month: 'short',
                                                 day: 'numeric',
@@ -135,7 +135,7 @@ const Home = () => {
                                         </span>
                                         <button
                                             onClick={() => deleteProject(project._id)}
-                                            className="text-gray-400 hover:text-red-400 transition-colors p-1 hover:bg-gray-700 rounded"
+                                            className="text-muted-foreground hover:text-red-500 transition-colors p-1 hover:bg-muted rounded"
                                             title="Delete project"
                                         >
                                             <i className="ri-delete-bin-6-line text-lg"></i>
@@ -151,27 +151,27 @@ const Home = () => {
             {/* Create Project Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-                    <div className="bg-gray-800 w-full max-w-md p-6 rounded-xl border border-gray-700 shadow-2xl">
+                    <div className="bg-card w-full max-w-md p-6 rounded-xl border border-border shadow-2xl">
                         <div className="flex justify-between items-center mb-5">
-                            <h2 className="text-xl font-semibold text-gray-100">
-                                <i className="ri-rocket-line mr-2 text-blue-400"></i>
+                            <h2 className="text-xl font-semibold text-foreground">
+                                <i className="ri-rocket-line mr-2 text-primary"></i>
                                 Create New Project
                             </h2>
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="text-gray-400 hover:text-gray-200 transition-colors"
+                                className="text-muted-foreground hover:text-foreground transition-colors"
                             >
                                 <i className="ri-close-line text-2xl"></i>
                             </button>
                         </div>
                         <form onSubmit={createProject}>
                             <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Project Name</label>
+                                <label className="block text-sm font-medium text-muted-foreground mb-2">Project Name</label>
                                 <input
                                     type="text"
                                     value={projectName}
                                     onChange={(e) => setProjectName(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-100 placeholder-gray-500"
+                                    className="w-full px-4 py-2.5 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all text-foreground placeholder-muted-foreground"
                                     placeholder="e.g. Quantum Leap Initiative"
                                     required
                                     autoFocus
@@ -181,13 +181,13 @@ const Home = () => {
                                 <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
-                                    className="px-5 py-2.5 text-gray-300 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors border border-gray-600"
+                                    className="px-5 py-2.5 text-muted-foreground bg-secondary rounded-lg hover:bg-muted transition-colors border border-border"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 hover:shadow-lg hover:shadow-blue-500/20"
+                                    className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors flex items-center gap-2 hover:shadow-lg hover:shadow-primary/20"
                                 >
                                     <i className="ri-add-line"></i>
                                     Create Project

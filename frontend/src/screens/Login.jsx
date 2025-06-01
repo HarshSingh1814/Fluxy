@@ -33,43 +33,43 @@ const Login = () => {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-4">
-            <div className="flex flex-col lg:flex-row w-full max-w-6xl bg-gray-800 rounded-xl overflow-hidden shadow-2xl">
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+            <div className="flex flex-col lg:flex-row w-full max-w-6xl bg-card rounded-xl overflow-hidden shadow-2xl">
                 {/* Left Side - Branding/Info */}
-                <div className="lg:w-1/2 bg-gradient-to-br from-blue-600 to-purple-600 p-12 flex flex-col justify-center">
+                <div className="lg:w-1/2 bg-gradient-to-br from-primary to-accent p-12 flex flex-col justify-center">
                     <div className="mb-8">
-                        <h1 className="text-4xl font-bold text-white mb-2">Fluxy</h1>
-                        <p className="text-blue-100">Your professional project management solution</p>
+                        <h1 className="text-4xl font-bold text-primary-foreground mb-2">Fluxy</h1>
+                        <p className="text-primary-foreground/80">Your professional project management solution</p>
                     </div>
                     
                     <div className="space-y-6">
                         <div className="flex items-start">
-                            <div className="bg-blue-500/20 p-2 rounded-lg mr-4">
-                                <i className="ri-team-line text-2xl text-blue-200"></i>
+                            <div className="bg-primary/20 p-2 rounded-lg mr-4">
+                                <i className="ri-team-line text-2xl text-primary-foreground/70"></i>
                             </div>
                             <div>
-                                <h3 className="text-white font-medium mb-1">Collaborate Efficiently</h3>
-                                <p className="text-blue-100 text-sm">Work seamlessly with your team members in real-time</p>
+                                <h3 className="text-primary-foreground font-medium mb-1">Collaborate Efficiently</h3>
+                                <p className="text-primary-foreground/80 text-sm">Work seamlessly with your team members in real-time</p>
                             </div>
                         </div>
                         
                         <div className="flex items-start">
-                            <div className="bg-blue-500/20 p-2 rounded-lg mr-4">
-                                <i className="ri-bar-chart-line text-2xl text-blue-200"></i>
+                            <div className="bg-primary/20 p-2 rounded-lg mr-4">
+                                <i className="ri-bar-chart-line text-2xl text-primary-foreground/70"></i>
                             </div>
                             <div>
-                                <h3 className="text-white font-medium mb-1">Track Progress</h3>
-                                <p className="text-blue-100 text-sm">Monitor your project milestones and deadlines</p>
+                                <h3 className="text-primary-foreground font-medium mb-1">Track Progress</h3>
+                                <p className="text-primary-foreground/80 text-sm">Monitor your project milestones and deadlines</p>
                             </div>
                         </div>
                         
                         <div className="flex items-start">
-                            <div className="bg-blue-500/20 p-2 rounded-lg mr-4">
-                                <i className="ri-shield-keyhole-line text-2xl text-blue-200"></i>
+                            <div className="bg-primary/20 p-2 rounded-lg mr-4">
+                                <i className="ri-shield-keyhole-line text-2xl text-primary-foreground/70"></i>
                             </div>
                             <div>
-                                <h3 className="text-white font-medium mb-1">Secure Platform</h3>
-                                <p className="text-blue-100 text-sm">Your data is protected with enterprise-grade security</p>
+                                <h3 className="text-primary-foreground font-medium mb-1">Secure Platform</h3>
+                                <p className="text-primary-foreground/80 text-sm">Your data is protected with enterprise-grade security</p>
                             </div>
                         </div>
                     </div>
@@ -78,17 +78,17 @@ const Login = () => {
                 {/* Right Side - Login Form */}
                 <div className="lg:w-1/2 p-12 flex flex-col justify-center">
                     <div className="mb-8 text-center lg:text-left">
-                        <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
-                        <p className="text-gray-400">Sign in to access your projects</p>
+                        <h2 className="text-3xl font-bold text-foreground mb-2">Welcome Back</h2>
+                        <p className="text-muted-foreground">Sign in to access your projects</p>
                     </div>
                     
                     <form onSubmit={submitHandler} className="space-y-6">
                         <div>
-                            <label className="block text-gray-300 mb-2 text-sm font-medium">Email Address</label>
+                            <label className="block text-muted-foreground mb-2 text-sm font-medium">Email Address</label>
                             <input
                                 onChange={(e) => setEmail(e.target.value)}
                                 type="email"
-                                className="w-full p-3.5 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                className="w-full p-3.5 rounded-lg bg-input border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
                                 placeholder="your@email.com"
                                 required
                             />
@@ -96,13 +96,13 @@ const Login = () => {
                         
                         <div>
                             <div className="flex justify-between items-center mb-2">
-                                <label className="block text-gray-300 text-sm font-medium">Password</label>
-                                <Link to="/forgot-password" className="text-sm text-blue-400 hover:underline">Forgot password?</Link>
+                                <label className="block text-muted-foreground text-sm font-medium">Password</label>
+                                <Link to="/forgot-password" className="text-sm text-primary hover:underline">Forgot password?</Link>
                             </div>
                             <input
                                 onChange={(e) => setPassword(e.target.value)}
                                 type="password"
-                                className="w-full p-3.5 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                className="w-full p-3.5 rounded-lg bg-input border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
                                 placeholder="••••••••"
                                 required
                             />
@@ -110,23 +110,23 @@ const Login = () => {
                         
                         <button
                             type="submit"
-                            className="w-full p-3.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-all hover:shadow-lg hover:shadow-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                            className="w-full p-3.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all hover:shadow-lg hover:shadow-primary/20 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
                         >
                             Sign In
                         </button>
                     </form>
                     
                     <div className="mt-8 text-center">
-                        <p className="text-gray-400">
+                        <p className="text-muted-foreground">
                             Don't have an account?{' '}
-                            <Link to="/register" className="text-blue-400 hover:underline font-medium">
+                            <Link to="/register" className="text-primary hover:underline font-medium">
                                 Create account
                             </Link>
                         </p>
                     </div>
                     
-                    <div className="mt-8 pt-6 border-t border-gray-700">
-                        <p className="text-xs text-gray-500 text-center">
+                    <div className="mt-8 pt-6 border-t border-border">
+                        <p className="text-xs text-muted-foreground/70 text-center">
                             By continuing, you agree to our Terms of Service and Privacy Policy
                         </p>
                     </div>

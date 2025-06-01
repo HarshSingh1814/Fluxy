@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
-import { GoogleGenAI } from "@google/genai";
+// import { GoogleGenAI } from "@google/genai"; // Removed unused import
 
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_KEY);
@@ -103,10 +103,19 @@ const model = genAI.getGenerativeModel({
 });
 
 export const generateResult = async (prompt) => {
+    if (!process.env.GOOGLE_AI_KEY) {
+        throw new Error("Google AI API key (GOOGLE_AI_KEY) is not configured in environment variables.");
+    }
 
     const result = await model.generateContent(prompt);
+    const textResponse = result.response.text();
 
-    return result.response.text()
+    try {
+      return JSON.parse(textResponse);
+    } catch (e) {
+      console.error("Failed to parse AI response as JSON:", textResponse, e);
+      throw new Error("AI returned an invalid JSON response.");
+    }
 }
 
 

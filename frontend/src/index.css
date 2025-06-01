@@ -1,17 +1,39 @@
-@import "tailwindcss";
+@import "tailwindcss"; /* Keep this if it's how Tailwind is integrated via Vite plugin */
 
-/* * {
-  margin: 0%;
-  padding: 0%;
-  box-sizing: border-box;
-} */
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%; /* Dark Slate Gray ~ hsl(222, 84%, 5%) */
+    --foreground: 210 40% 98%; /* Almost White ~ hsl(210, 40%, 98%) */
 
-html,
-body {
-  height: 100%;
-  width: 100%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --primary: 217.2 91.2% 59.8%; /* Blue ~ hsl(217, 91%, 60%) */
+    --primary-foreground: 210 40% 98%; /* Almost White */
+
+    --secondary: 217.2 32.6% 17.5%; /* Darker Blue/Gray ~ hsl(217, 33%, 17%) */
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 210 40% 96.1%; /* Lighter Gray ~ hsl(210, 40%, 96%) */
+
+    --accent: 217.2 91.2% 59.8%;
+    --accent-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 217.2 91.2% 59.8%;
+
+    --radius: 0.5rem;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1; /* Optional: for better font rendering */
+  }
 }
 
+/* Keep existing custom scrollbar styles if desired */
 .message-box{
   scroll-behavior: smooth;
 }

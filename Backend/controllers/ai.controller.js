@@ -9,5 +9,5 @@ export const getResult = catchAsync(async (req, res) => {
         throw error;
     }
     const result = await ai.generateResult(prompt);
-    res.send(result);
+    res.json(result); // Changed from res.send to res.json
 });

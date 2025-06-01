@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useContext, useRef } from 'react'
+import React, { useState, useEffect, useContext, useRef, useCallback } from 'react'
 import { UserContext } from '../context/user.context'
 import { useNavigate, useLocation } from 'react-router-dom'
 import axios from '../config/axios'
-import { initializeSocket, receiveMessage, sendMessage } from '../config/socket'
+import { initializeSocket, receiveMessage, sendMessage, removeListener, disconnectSocket } from '../config/socket'
 import Markdown from 'markdown-to-jsx'
 import hljs from 'highlight.js';
 import { getWebContainer } from '../config/webcontainer'
@@ -23,11 +23,46 @@ function SyntaxHighlightedCode(props) {
 }
 
 const Project = () => {
-    const location = useLocation()
+    const location = useLocation();
+    const navigate = useNavigate(); // Added for potential navigation
+
+    // Check for location.state.project
+    if (!location.state?.project) {
+        // Optionally, you could try to extract projectId from URL params if your route is like /project/:id
+        // const { projectId } = useParams();
+        // if (projectId) { /* Add logic here to fetch project by id, then setProject */ }
+
+        // For now, just show a message and an option to go back or to home.
+        return (
+            <div className="h-screen w-screen flex flex-col items-center justify-center bg-background text-foreground p-4">
+                <i className="ri-error-warning-line text-6xl text-primary mb-4"></i>
+                <h1 className="text-3xl font-semibold mb-2">Project Data Not Found</h1>
+                <p className="text-muted-foreground mb-6 text-center">
+                    The project data could not be loaded. This might happen if you navigated directly to this page <br />
+                    or if the project does not exist.
+                </p>
+                <div className="flex gap-4">
+                    <button
+                        onClick={() => navigate(-1)} // Go back
+                        className="px-6 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-muted transition-colors"
+                    >
+                        Go Back
+                    </button>
+                    <button
+                        onClick={() => navigate('/')} // Go to Home
+                        className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                    >
+                        Go to Home
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [selectedUserId, setSelectedUserId] = useState(new Set())
-    const [project, setProject] = useState(location.state.project)
+    const [project, setProject] = useState(location.state.project) // This is now safe
     const [message, setMessage] = useState('')
     const { user } = useContext(UserContext)
     const messageBox = React.createRef()
@@ -88,8 +123,12 @@ const Project = () => {
 
     function WriteAiMessage(message) {
         const messageObject = JSON.parse(message)
+        // This div is part of the AI message bubble, which already has bg-muted.
+        // So, this inner div should likely be transparent or inherit, and text should be foreground for that muted background.
+        // Or, if it's meant to be a distinct "code block" style within the AI message, it can have its own card-like appearance.
+        // Let's make it subtly distinct but part of the muted bubble.
         return (
-            <div className='overflow-auto bg-gray-800 text-gray-100 rounded-lg p-3 border border-gray-700'>
+            <div className='overflow-auto bg-muted/50 text-foreground rounded-lg p-3 border border-border'>
                 <Markdown
                     children={messageObject.text}
                     options={{
@@ -102,59 +141,89 @@ const Project = () => {
         )
     }
 
-    useEffect(() => {
-        initializeSocket(project._id)
+    }
 
+    // Define handleProjectMessage using useCallback
+    const handleProjectMessage = useCallback((data) => {
+        console.log("Received project-message:", data);
+        const isAI = data?.sender?._id === 'ai';
+        if (isAI) {
+            let messageData = null;
+            try {
+                // Assuming data.message is the stringified JSON from AI
+                messageData = typeof data.message === 'string' ? JSON.parse(data.message) : data.message;
+                console.log("Parsed AI message data:", messageData);
+            } catch (err) {
+                console.error("Failed to parse AI message JSON:", data.message, err);
+                // If parsing fails, still add the raw data to messages to see what was received
+                setMessages((prevMessages) => [...prevMessages, { ...data, message: "Error: AI sent unparsable message." }]);
+                return;
+            }
+
+            if (messageData?.fileTree && webContainer) {
+                console.log("Mounting fileTree from AI message");
+                webContainer.mount(messageData.fileTree);
+                setFileTree(messageData.fileTree); // Assuming setFileTree is stable
+            }
+             // Add the original data structure to messages, but ensure message field is appropriately handled
+            setMessages((prevMessages) => [...prevMessages, { ...data, message: messageData?.text || data.message }]);
+        } else {
+            setMessages((prevMessages) => [...prevMessages, data]);
+        }
+    }, [webContainer]); // Dependencies: webContainer and setFileTree (if it weren't stable from useState)
+
+    useEffect(() => {
+        // Since 'project' state is initialized from location.state.project,
+        // and we've checked location.state.project is not null/undefined before this point,
+        // project._id should be safe to use here.
+        // However, if project state could be nullified by other means later,
+        // an additional check `if (!project?._id) return;` might be warranted here.
+        // For now, assuming project._id is valid due to the initial check.
+        if (!project?._id) {
+            console.error("Project ID is missing, cannot initialize socket or fetch data.");
+            // Optionally, navigate away or show a more persistent error
+            return;
+        }
+        initializeSocket(project._id);
+        receiveMessage('project-message', handleProjectMessage);
+
+        // Initialize WebContainer
         if (!webContainer) {
             getWebContainer().then(container => {
-                setWebContainer(container)
-                console.log("container started")
-            })
+                setWebContainer(container);
+                console.log("WebContainer started");
+            }).catch(err => console.error("Failed to initialize WebContainer:", err));
         }
 
-        receiveMessage('project-message', (data) => {
-            console.log(data);
-        
-            const isAI = data?.sender?._id === 'ai';
-        
-            if (isAI) {
-                let message = null;
-        
-                try {
-                    message = JSON.parse(data.message);
-                    console.log(message);
-                } catch (err) {
-                    console.error("Failed to parse message JSON:", err);
-                    return; // Exit early if JSON is invalid
-                }
-        
-                if (message?.fileTree) {
-                    webContainer?.mount(message.fileTree);
-                    setFileTree(message.fileTree);
-                }
-        
-                setMessages((prevMessages) => [...prevMessages, data]); // Update messages state
-        
-            } else {
-                setMessages((prevMessages) => [...prevMessages, data]); // Update messages state
-            }
-        });
+        // Fetch initial project data
+        axios.get(`/projects/get-project/${project._id}`)
+            .then(res => {
+                console.log("Project data fetched:", res.data.project);
+                setProject(res.data.project);
+                setFileTree(res.data.project.fileTree || {});
+            })
+            .catch(err => console.error("Failed to fetch project data:", err));
 
+        // Fetch users
+        axios.get('/users/all')
+            .then(res => {
+                setUsers(res.data.users);
+            })
+            .catch(err => console.error("Failed to fetch users:", err));
 
+        return () => {
+            removeListener('project-message', handleProjectMessage);
+            // Note: disconnectSocket is handled by the separate unmount effect
+        };
+    }, [project._id, handleProjectMessage]); // webContainer is a dependency of handleProjectMessage
 
+    // Effect for final unmount cleanup
+    useEffect(() => {
+        return () => {
+            disconnectSocket();
+        };
+    }, []);
 
-        axios.get(`/projects/get-project/${location.state.project._id}`).then(res => {
-            console.log(res.data.project)
-            setProject(res.data.project)
-            setFileTree(res.data.project.fileTree || {})
-        })
-
-        axios.get('/users/all').then(res => {
-            setUsers(res.data.users)
-        }).catch(err => {
-            console.log(err)
-        })
-    }, [])
 
     function saveFileTree(ft) {
         axios.put('/projects/update-file-tree', {
@@ -178,22 +247,22 @@ const Project = () => {
     }
 
     return (
-        <main className='h-screen w-screen flex bg-gray-900 text-gray-100 overflow-hidden'>
+        <main className='h-screen w-screen flex bg-background text-foreground overflow-hidden'>
             {/* Left Panel - Chat */}
-            <section className="flex flex-col h-full w-96 bg-gray-800 border-r border-gray-700">
-                <header className='flex justify-between items-center p-4 border-b border-gray-700'>
-                    <h1 className='text-xl font-bold text-blue-400'>{project.name}</h1>
+            <section className="flex flex-col h-full w-96 bg-secondary border-r border-border">
+                <header className='flex justify-between items-center p-4 border-b border-border'>
+                    <h1 className='text-xl font-bold text-primary'>{project.name}</h1>
                     <div className='flex gap-3'>
                         <button
                             onClick={() => setIsModalOpen(true)}
-                            className='p-2 rounded-md hover:bg-gray-700 transition-colors'
+                            className='p-2 rounded-md hover:bg-muted transition-colors'
                             title="Add Collaborator"
                         >
                             <i className="ri-user-add-line"></i>
                         </button>
                         <button
                             onClick={() => setIsSidePanelOpen(!isSidePanelOpen)}
-                            className='p-2 rounded-md hover:bg-gray-700 transition-colors'
+                            className='p-2 rounded-md hover:bg-muted transition-colors'
                             title="Collaborators"
                         >
                             <i className="ri-group-fill"></i>
@@ -205,7 +274,7 @@ const Project = () => {
                 <div className="conversation-area pt-14 pb-10 flex-grow flex flex-col h-full relative">
                     <div
                         ref={messageBox}
-                        className="flex-grow p-4 flex flex-col gap-3 overflow-auto scrollbar-hide scrollbar-thumb-gray-600 scrollbar-track-gray-800"
+                        className="flex-grow p-4 flex flex-col gap-3 overflow-auto scrollbar-hide scrollbar-thumb-muted scrollbar-track-secondary"
                     >
                         {messages.map((msg, index) => (
                             <div
@@ -213,38 +282,36 @@ const Project = () => {
                                 className={`flex flex-col ${msg.sender?._id === user?._id?.toString() ? 'items-end' : 'items-start'}`}
                             >
                                 <div className={`flex items-center gap-2 mb-1 ${msg.sender?._id === user?._id?.toString() ? 'justify-end' : ''}`}>
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${msg.sender?._id === user?._id?.toString() ? 'bg-blue-500' : 'bg-purple-500'}`}>
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${msg.sender?._id === user?._id?.toString() ? 'bg-primary text-primary-foreground' : 'bg-accent text-accent-foreground'}`}>
                                         {msg.sender?.email?.charAt(0).toUpperCase()}
                                     </div>
-                                    <small className='text-gray-400 text-xs'>{msg.sender?.email}</small>
+                                    <small className='text-muted-foreground text-xs'>{msg.sender?.email}</small>
                                 </div>
-                                <div className={`max-w-[80%] rounded-lg p-3 ${msg.sender?._id === user?._id?.toString() ? 'bg-blue-600' : msg.sender?._id === 'ai' ? 'bg-gray-700' : 'bg-gray-600'}`}>
+                                <div className={`max-w-[80%] rounded-lg p-3 ${msg.sender?._id === user?._id?.toString() ? 'bg-primary text-primary-foreground' : msg.sender?._id === 'ai' ? 'bg-muted text-muted-foreground' : 'bg-card text-foreground'}`}>
                                     {msg.sender._id === 'ai' ?
                                         WriteAiMessage(msg.message) :
-                                        <p className='text-gray-100'>{msg.message}</p>
+                                        <p className='text-foreground'>{msg.message}</p>
                                     }
                                 </div>
                             </div>
                         ))}
                     </div>
 
-                    <div className="p-4 border-t border-gray-700">
-                        <div className="flex items-center gap-2 bg-gray-700 rounded-lg p-2">
+                    <div className="p-4 border-t border-border">
+                        <div className="flex items-center gap-2 bg-input rounded-lg p-2">
                              <input
                                 value={message}
                                 onChange={(e) => setMessage(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                className='flex-grow bg-transparent outline-none text-gray-100 placeholder-gray-400'
+                                className='flex-grow bg-transparent outline-none text-foreground placeholder-muted-foreground'
                                 type="text"
                                 placeholder='Type a message...'
                             /> 
                              
-
-
                              <button
                                 onClick={send}
                                 disabled={!message.trim()}
-                                className={`p-2 rounded-full ${message.trim() ? 'text-blue-400 hover:bg-blue-900/30' : 'text-gray-500'}`}
+                                className={`p-2 rounded-full ${message.trim() ? 'text-primary hover:bg-primary/20' : 'text-muted-foreground'}`}
                             >
                                 <i className="ri-send-plane-fill"></i>
                             </button> 
@@ -254,25 +321,25 @@ const Project = () => {
                 </div>
 
                 {/* Collaborators Side Panel */}
-                <div className={`absolute inset-y-0 left-0 w-80 bg-gray-800 border-r border-gray-700 z-20 shadow-xl transition-transform duration-300 ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                    <header className='flex justify-between items-center p-4 border-b border-gray-700'>
-                        <h1 className='text-lg font-semibold'>Collaborators</h1>
+                <div className={`absolute inset-y-0 left-0 w-80 bg-secondary border-r border-border z-20 shadow-xl transition-transform duration-300 ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                    <header className='flex justify-between items-center p-4 border-b border-border'>
+                        <h1 className='text-lg font-semibold text-foreground'>Collaborators</h1>
                         <button
                             onClick={() => setIsSidePanelOpen(false)}
-                            className='p-1 rounded-md hover:bg-gray-700'
+                            className='p-1 rounded-md hover:bg-muted'
                         >
                             <i className="ri-close-line"></i>
                         </button>
                     </header>
                     <div className="p-4 space-y-3 overflow-y-auto">
                         {project.users && project.users.map((user, index) => (
-                            <div key={index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-700 transition-colors">
-                                <div className='w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white'>
+                            <div key={index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors">
+                                <div className='w-10 h-10 rounded-full bg-accent flex items-center justify-center text-accent-foreground'>
                                     {/* {user.email.charAt(0).toUpperCase()} */}
                                 </div>
                                 <div>
-                                    <h3 className='font-medium'>{user.email}</h3>
-                                    <p className='text-xs text-gray-400'>Active</p>
+                                    <h3 className='font-medium text-foreground'>{user.email}</h3>
+                                    <p className='text-xs text-muted-foreground'>Active</p>
                                 </div>
                             </div>
                         ))}
@@ -281,18 +348,18 @@ const Project = () => {
             </section>
 
             {/* Right Panel - Code Editor */}
-            <section className="flex-grow flex flex-col h-full bg-gray-900">
+            <section className="flex-grow flex flex-col h-full bg-background">
                 {/* File Explorer + Editor Container */}
                 <div className="flex flex-grow overflow-hidden">
                     {/* File Explorer */}
-                    <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
-                        <div className="p-3 border-b border-gray-700 flex justify-between items-center">
-                            <h2 className='font-semibold text-gray-300'>EXPLORER</h2>
-                            <button className='text-gray-400 hover:text-white'>
+                    <div className="w-64 bg-secondary border-r border-border flex flex-col">
+                        <div className="p-3 border-b border-border flex justify-between items-center">
+                            <h2 className='font-semibold text-muted-foreground'>EXPLORER</h2>
+                            <button className='text-muted-foreground hover:text-foreground'>
                                 <i className="ri-add-line"></i>
                             </button>
                         </div>
-                        <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+                        <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-secondary">
                             {Object.keys(fileTree).map((file, index) => (
                                 <button
                                     key={index}
@@ -300,9 +367,9 @@ const Project = () => {
                                         setCurrentFile(file)
                                         setOpenFiles([...new Set([...openFiles, file])])
                                     }}
-                                    className={`w-full text-left p-2 px-4 flex items-center gap-2 hover:bg-gray-700 ${currentFile === file ? 'bg-gray-700 text-blue-400' : 'text-gray-300'}`}
+                                    className={`w-full text-left p-2 px-4 flex items-center gap-2 hover:bg-muted ${currentFile === file ? 'bg-muted text-primary' : 'text-foreground'}`}
                                 >
-                                    <i className={`ri-${file.includes('.') ? 'file-line' : 'folder-line'} text-yellow-400`}></i>
+                                    <i className={`ri-${file.includes('.') ? 'file-line' : 'folder-line'} text-accent`}></i>
                                     <span className='truncate'>{file}</span>
                                 </button>
                             ))}
@@ -310,17 +377,17 @@ const Project = () => {
                     </div>
 
                     {/* Code Editor */}
-                    <div className="flex-grow flex flex-col bg-gray-900">
+                    <div className="flex-grow flex flex-col bg-background">
                         {/* File Tabs */}
-                        <div className="flex items-center bg-gray-800 border-b border-gray-700 overflow-x-auto scrollbar-thin">
+                        <div className="flex items-center bg-secondary border-b border-border overflow-x-auto scrollbar-thin">
                             {openFiles.map((file, index) => (
                                 <div
                                     key={index}
-                                    className={`flex items-center border-r border-gray-700 ${currentFile === file ? 'bg-gray-900' : 'bg-gray-800'}`}
+                                    className={`flex items-center border-r border-border ${currentFile === file ? 'bg-background' : 'bg-secondary'}`}
                                 >
                                     <button
                                         onClick={() => setCurrentFile(file)}
-                                        className={`px-4 py-2 flex items-center gap-2 ${currentFile === file ? 'text-white' : 'text-gray-400 hover:text-white'}`}
+                                        className={`px-4 py-2 flex items-center gap-2 ${currentFile === file ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                                     >
                                         <i className={`ri-${file.includes('.') ? 'file-line' : 'folder-line'}`}></i>
                                         <span className='truncate max-w-xs'>{file}</span>
@@ -332,7 +399,7 @@ const Project = () => {
                                                 setCurrentFile(openFiles.length > 1 ? openFiles[index === 0 ? 1 : index - 1] : null)
                                             }
                                         }}
-                                        className='p-1 mr-1 text-gray-400 hover:text-white'
+                                        className='p-1 mr-1 text-muted-foreground hover:text-foreground'
                                     >
                                         <i className="ri-close-line"></i>
                                     </button>
@@ -344,9 +411,9 @@ const Project = () => {
                         <div className="flex-grow relative">
                             {fileTree[currentFile] ? (
                                 <div className="absolute inset-0 overflow-auto">
-                                    <pre className="h-full bg-gray-900">
+                                    <pre className="h-full bg-background"> {/* Editor background */}
                                         <code
-                                            className="block h-full p-4 outline-none font-mono text-sm"
+                                            className="block h-full p-4 outline-none font-mono text-sm text-foreground" // Editor text
                                             contentEditable
                                             suppressContentEditableWarning
                                             onBlur={(e) => {
@@ -367,7 +434,7 @@ const Project = () => {
                                     </pre>
                                 </div>
                             ) : (
-                                <div className="h-full flex items-center justify-center text-gray-500">
+                                <div className="h-full flex items-center justify-center text-muted-foreground">
                                     <div className="text-center">
                                         <i className="ri-file-code-line text-4xl mb-2"></i>
                                         <p>No file selected</p>
@@ -377,40 +444,89 @@ const Project = () => {
                         </div>
 
                         {/* Status Bar */}
-                        <div className="bg-blue-600 text-white px-4 py-1 text-xs flex justify-between items-center">
+                        <div className="bg-primary text-primary-foreground px-4 py-1 text-xs flex justify-between items-center">
                             <div className="flex items-center gap-4">
                                 <button
                                     onClick={async () => {
-                                        if (!webContainer) return
-
-                                        await webContainer.mount(fileTree)
-                                        const installProcess = await webContainer.spawn("npm", ["install"])
-
-                                        installProcess.output.pipeTo(new WritableStream({
-                                            write(chunk) {
-                                                console.log(chunk)
-                                            }
-                                        }))
-
-                                        if (runProcess) {
-                                            runProcess.kill()
+                                        if (!webContainer) {
+                                            console.warn("WebContainer not initialized yet.");
+                                            return;
                                         }
 
-                                        let tempRunProcess = await webContainer.spawn("npm", ["start"])
-                                        tempRunProcess.output.pipeTo(new WritableStream({
-                                            write(chunk) {
-                                                console.log(chunk)
-                                            }
-                                        }))
+                                        try {
+                                            console.log("Mounting files to WebContainer...");
+                                            await webContainer.mount(fileTree);
+                                        } catch (error) {
+                                            console.error("Error during WebContainer mount:", error);
+                                            // Optionally, inform the user via UI notification
+                                            return; // Stop if mounting fails
+                                        }
 
-                                        setRunProcess(tempRunProcess)
+                                        let installProcess;
+                                        try {
+                                            console.log("Running npm install...");
+                                            installProcess = await webContainer.spawn("npm", ["install"]);
+                                            installProcess.output.pipeTo(new WritableStream({
+                                                write(chunk) {
+                                                    console.log("Install output:", chunk);
+                                                    // Here you could also stream output to a terminal UI element
+                                                }
+                                            }));
+                                            const installExitCode = await installProcess.exit;
+                                            if (installExitCode !== 0) {
+                                                console.error(`npm install failed with exit code ${installExitCode}`);
+                                                // Optionally, inform the user
+                                                return; // Stop if install fails
+                                            }
+                                            console.log("npm install completed.");
+                                        } catch (error) {
+                                            console.error("Error during npm install:", error);
+                                            return; // Stop if spawning install fails
+                                        }
+
+                                        if (runProcess) {
+                                            console.log("Killing existing run process...");
+                                            runProcess.kill();
+                                        }
+
+                                        let tempRunProcess;
+                                        try {
+                                            console.log("Running npm start...");
+                                            tempRunProcess = await webContainer.spawn("npm", ["start"]);
+                                            tempRunProcess.output.pipeTo(new WritableStream({
+                                                write(chunk) {
+                                                    console.log("Start output:", chunk);
+                                                    // Stream output to terminal UI
+                                                }
+                                            }));
+                                            // Note: We don't typically await `tempRunProcess.exit` here for `npm start`
+                                            // because it's a long-running process (the dev server).
+                                            // We handle its lifecycle via `runProcess.kill()` if needed.
+                                            console.log("npm start process initiated.");
+                                        } catch (error) {
+                                            console.error("Error during npm start:", error);
+                                            return; // Stop if spawning start fails
+                                        }
+
+                                        setRunProcess(tempRunProcess);
 
                                         webContainer.on('server-ready', (port, url) => {
-                                            console.log(port, url)
-                                            setIframeUrl(url)
-                                        })
+                                            console.log(`Server ready on port ${port} at ${url}`);
+                                            setIframeUrl(url);
+                                        });
+
+                                        // Handle process exit, e.g., if 'npm start' crashes
+                                        tempRunProcess.exit.then(code => {
+                                            console.log(`npm start process exited with code ${code}`);
+                                            // Optionally, clear iframe or notify user
+                                            if (code !== 0 && code !== null) { // null if killed by us
+                                                // setIframeUrl(null); // Example cleanup
+                                            }
+                                        }).catch(e => {
+                                            console.error("Error waiting for npm start process exit:", e)
+                                        });
                                     }}
-                                    className="flex items-center gap-1 hover:bg-blue-700 px-2 py-1 rounded"
+                                    className="flex items-center gap-1 hover:bg-primary/90 px-2 py-1 rounded"
                                 >
                                     <i className="ri-play-line"></i>
                                     <span>Run</span>
@@ -426,24 +542,24 @@ const Project = () => {
 
                     {/* Preview Panel */}
                     {iframeUrl && webContainer && (
-                        <div className="w-1/3 flex flex-col h-full border-l border-gray-700 bg-gray-900">
-                            <div className="p-2 border-b border-gray-700 flex items-center bg-gray-800">
+                        <div className="w-1/3 flex flex-col h-full border-l border-border bg-background">
+                            <div className="p-2 border-b border-border flex items-center bg-secondary">
                                 <input
                                     type="text"
                                     onChange={(e) => setIframeUrl(e.target.value)}
                                     value={iframeUrl}
-                                    className="flex-grow bg-gray-700 text-white text-sm px-3 py-1 rounded outline-none"
+                                    className="flex-grow bg-input text-foreground text-sm px-3 py-1 rounded outline-none"
                                 />
                                 <button
                                     onClick={() => setIframeUrl(null)}
-                                    className="ml-2 p-1 text-gray-400 hover:text-white"
+                                    className="ml-2 p-1 text-muted-foreground hover:text-foreground"
                                 >
                                     <i className="ri-close-line"></i>
                                 </button>
                             </div>
                             <iframe
                                 src={iframeUrl}
-                                className="flex-grow bg-white"
+                                className="flex-grow bg-white" /* iframe content should dictate its own bg */
                                 frameBorder="0"
                             />
                         </div>
@@ -454,12 +570,12 @@ const Project = () => {
             {/* Add Collaborator Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-30">
-                    <div className="bg-gray-800 rounded-lg w-96 max-w-full border border-gray-700 shadow-xl">
-                        <header className='flex justify-between items-center p-4 border-b border-gray-700'>
-                            <h2 className='text-lg font-semibold'>Add Collaborators</h2>
+                    <div className="bg-card rounded-lg w-96 max-w-full border border-border shadow-xl">
+                        <header className='flex justify-between items-center p-4 border-b border-border'>
+                            <h2 className='text-lg font-semibold text-foreground'>Add Collaborators</h2>
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className='p-1 rounded-md hover:bg-gray-700'
+                                className='p-1 rounded-md hover:bg-muted'
                             >
                                 <i className="ri-close-line"></i>
                             </button>
@@ -468,26 +584,26 @@ const Project = () => {
                             {users.filter(u => !project.users.some(pu => pu._id === u._id)).map(user => (
                                 <div
                                     key={user._id}
-                                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${Array.from(selectedUserId).includes(user._id) ? 'bg-blue-900/30 border border-blue-500' : 'hover:bg-gray-700'}`}
+                                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${Array.from(selectedUserId).includes(user._id) ? 'bg-primary/20 border border-primary' : 'hover:bg-muted'}`}
                                     onClick={() => handleUserClick(user._id)}
                                 >
-                                    <div className='w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white'>
+                                    <div className='w-10 h-10 rounded-full bg-accent flex items-center justify-center text-accent-foreground'>
                                         {user.email.charAt(0).toUpperCase()}
                                     </div>
                                     <div className="flex-grow">
-                                        <h3 className='font-medium'>{user.email}</h3>
+                                        <h3 className='font-medium text-foreground'>{user.email}</h3>
                                     </div>
                                     {Array.from(selectedUserId).includes(user._id) && (
-                                        <i className="ri-check-line text-blue-400"></i>
+                                        <i className="ri-check-line text-primary"></i>
                                     )}
                                 </div>
                             ))}
                         </div>
-                        <div className='p-4 border-t border-gray-700 flex justify-end'>
+                        <div className='p-4 border-t border-border flex justify-end'>
                             <button
                                 onClick={addCollaborators}
                                 disabled={selectedUserId.size === 0}
-                                className={`px-4 py-2 rounded-md ${selectedUserId.size > 0 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 cursor-not-allowed'} transition-colors`}
+                                className={`px-4 py-2 rounded-md text-primary-foreground ${selectedUserId.size > 0 ? 'bg-primary hover:bg-primary/90' : 'bg-muted text-muted-foreground cursor-not-allowed'} transition-colors`}
                             >
                                 Add {selectedUserId.size > 0 ? `(${selectedUserId.size})` : ''}
                             </button>
